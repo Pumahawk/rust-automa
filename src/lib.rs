@@ -69,3 +69,7 @@ impl <I> Cursor<I> {
         }
     }
 }
+
+pub fn eq<T: std::cmp::PartialEq>(input: T) -> impl Fn(&T) -> bool {
+    move |el| el == &input
+} 
