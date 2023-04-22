@@ -1,36 +1,38 @@
 use std::rc::Rc;
 use std::collections::LinkedList;
 
-pub struct Node {
-    links: LinkedList<Link>,
+pub struct Node<I> {
+    links: LinkedList<Link<I>>,
 }
 
-impl Node {
-    pub fn new() -> Rc<Node> {
+impl <I> Node<I> {
+    pub fn new() -> Rc<Node<I>> {
         Rc::new(Node {
             links: LinkedList::new(),
         })
     }
 
-    pub fn link(&mut self, destination: &Rc<Node>) -> &mut Link {
-        self.links.push_front(Link::new(destination));
+    pub fn link<F: Fn(&I) -> bool + 'static>(&mut self, destination: &Rc<Node<I>>, condition: F) -> &mut Link<I> {
+        self.links.push_front(Link::new(destination, condition));
         self.links.front_mut().unwrap()
     }
 }
 
-pub struct Link {
-    destination: Rc<Node>,
+pub struct Link<I> {
+    condition: Box<dyn Fn(&I) -> bool>,
+    destination: Rc<Node<I>>,
 }
 
-impl Link {
-    pub fn new(destination: &Rc<Node>) -> Link {
+impl <I> Link<I> {
+    pub fn new<F: Fn(&I) -> bool + 'static>(destination: &Rc<Node<I>>, condition: F) -> Link<I> {
         Link {
+            condition: Box::new(condition),
             destination: Rc::clone(destination),
         }
     }
 
-    pub fn condition(&self, _input: char) -> bool {
-        todo!()
+    pub fn condition(&self, input: &I) -> bool {
+        (self.condition)(input)
     }
 
     pub fn process(&self) {
@@ -38,18 +40,18 @@ impl Link {
     }
 }
 
-pub struct Cursor {
-    node: Rc<Node>,
+pub struct Cursor<I> {
+    node: Rc<Node<I>>,
 }
 
-impl Cursor {
-    pub fn new(node: &Rc<Node>) -> Cursor {
+impl <I> Cursor<I> {
+    pub fn new(node: &Rc<Node<I>>) -> Cursor<I> {
         Cursor {
             node: Rc::clone(node),
         }
     }
 
-    pub fn action(&mut self, input: char) {
+    pub fn action(&mut self, input: &I) {
         for link in self.node.links.iter() {
             if link.condition(input) {
                 link.process();
