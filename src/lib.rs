@@ -20,6 +20,7 @@ impl <I> Node<I> {
 
 pub struct Link<I> {
     condition: Box<dyn Fn(&I) -> bool>,
+    process: Option<Box<dyn Fn()>>,
     destination: Rc<Node<I>>,
 }
 
@@ -27,6 +28,7 @@ impl <I> Link<I> {
     pub fn new<F: Fn(&I) -> bool + 'static>(destination: &Rc<Node<I>>, condition: F) -> Link<I> {
         Link {
             condition: Box::new(condition),
+            process: None,
             destination: Rc::clone(destination),
         }
     }
@@ -36,7 +38,13 @@ impl <I> Link<I> {
     }
 
     pub fn process(&self) {
-        todo!();
+        if let Some(fun) = &self.process {
+            fun();
+        } 
+    }
+
+    pub fn set_process<F: Fn() + 'static>(&mut self, fun: F) {
+        self.process = Some(Box::new(fun));
     }
 }
 
