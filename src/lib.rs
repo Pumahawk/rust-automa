@@ -6,10 +6,10 @@ pub struct Node<I> {
 }
 
 impl <I> Node<I> {
-    pub fn new() -> Rc<Node<I>> {
-        Rc::new(Node {
+    pub fn new() -> Node<I> {
+        Node {
             links: LinkedList::new(),
-        })
+        }
     }
 
     pub fn link<F: Fn(&I) -> bool + 'static>(&mut self, destination: &Rc<Node<I>>, condition: F) -> &mut Link<I> {
@@ -73,3 +73,20 @@ impl <I> Cursor<I> {
 pub fn eq<T: std::cmp::PartialEq>(input: T) -> impl Fn(&T) -> bool {
     move |el| el == &input
 } 
+
+#[cfg(test)]
+mod tests {
+
+    use crate::*;
+    
+    #[test]
+    fn create_automa() {
+        let mut node1 = Node::<char>::new();
+        let node2 = Node::<char>::new();
+
+        node1.link(&Rc::new(node2), eq('A'));
+
+        let mut cursor = Cursor::new(&Rc::new(node1));
+        cursor.action(&'A');
+    }
+}
