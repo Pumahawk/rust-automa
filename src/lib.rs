@@ -95,11 +95,12 @@ impl <I, R> Cursor<I, R> {
         }
     }
 
-    pub fn action(&mut self, input: &I) {
+    pub fn action(&mut self, input: &I) -> Option<R> {
         let mut node = None;
+        let mut res = None;
         for link in self.node.borrow_mut().links.iter() {
             if link.condition(input) {
-                link.process(input);
+                res = link.process(input);
                 node = link.destination.clone();
                 break;
             }
@@ -107,6 +108,8 @@ impl <I, R> Cursor<I, R> {
         if let Some(node) = node {
             self.node = node;
         }
+
+        res
     }
 }
 
@@ -145,28 +148,44 @@ mod tests {
 
     #[test]
     fn read_string() {
+
+        enum StrStatus {
+            StringEnd,
+            None,
+        }
+
+        type StrNode = Node<char, StrStatus>;
+
         let string = Rc::new(RefCell::new(Vec::<char>::new()));
 
 
-        let mut n1 = TNode::new();
-        let mut n2 = TNode::new();
-        let n3 = TNode::new();
+        let mut n1 = StrNode::new();
+        let mut n2 = StrNode::new();
+        let n3 = StrNode::new();
 
         n1.link(Some(&n2), eq('"'));
 
         let strc = Rc::clone(&string);
         n2.link_update(None, |input| input >= &'a' || input <= &'z', |link| {
-            link.set_process(move |input| strc.borrow_mut().push(*input));
+            link.set_process(move |input| {
+                strc.borrow_mut().push(*input);
+                StrStatus::None
+            });
         });
 
-        n2.link(Some(&n3), eq('"'));
+        n2.link_update(Some(&n3), eq('"'), |link| link.set_process(|_| StrStatus::StringEnd));
 
-        let input = r#""stringa""#;
+        let input = r#""stringa"#;
         let mut cursor = Cursor::new(&n1);
-        input.chars().for_each(|c| cursor.action(&c));
+        input.chars().for_each(|c| { cursor.action(&c); });
 
-        let output: String = string.borrow().iter().collect();
+        match cursor.action(&'"') {
+            Some(StrStatus::StringEnd) => {
+                let output: String = string.borrow().iter().collect();
+                assert_eq!("stringa", output);
+            },
+            _ => assert!(false),
+        }
 
-        assert_eq!("stringa", output);
     }
 }
