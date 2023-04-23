@@ -138,4 +138,31 @@ mod tests {
 
         assert_eq!("help", v.borrow()[0]);
     }
+
+    #[test]
+    fn read_string() {
+        let string = Rc::new(RefCell::new(Vec::<char>::new()));
+
+
+        let mut n1 = Node::<char>::new();
+        let mut n2 = Node::<char>::new();
+        let n3 = Node::<char>::new();
+
+        n1.link(Some(&n2), eq('"'));
+
+        let strc = Rc::clone(&string);
+        n2.link_update(None, |input| input >= &'a' || input <= &'z', |link| {
+            link.set_process(move || strc.borrow_mut().push('v'));
+        });
+
+        n2.link(Some(&n3), eq('"'));
+
+        let input = r#""stringa""#;
+        let mut cursor = Cursor::new(&n1);
+        input.chars().for_each(|c| cursor.action(&c));
+
+        let output: String = string.borrow().iter().collect();
+
+        assert_eq!("vvvvvvv", output);
+    }
 }
