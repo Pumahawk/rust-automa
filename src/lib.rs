@@ -63,12 +63,16 @@ impl <I> Cursor<I> {
     }
 
     pub fn action(&mut self, input: &I) {
-        for link in (self.node.borrow_mut()).links.iter() {
+        let mut node = None;
+        for link in self.node.borrow_mut().links.iter() {
             if link.condition(input) {
                 link.process();
-                self.node = Rc::clone(&link.destination);
+                node = Some(Rc::clone(&link.destination));
                 break;
             }
+        }
+        if let Some(node) = node {
+            self.node = node;
         }
     }
 }
