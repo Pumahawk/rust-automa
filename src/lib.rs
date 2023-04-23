@@ -2,7 +2,7 @@ use std::rc::Rc;
 use std::cell::RefCell;
 use std::collections::LinkedList;
 
-type ANode<I> = Rc<RefCell<Node<I>>>;
+pub type ANode<I> = Rc<RefCell<Node<I>>>;
 
 pub trait Linkable<I> {
     fn link_update<F, FUpd>(&mut self, destination: Option<&ANode<I>>, condition: F, update_link: FUpd)
