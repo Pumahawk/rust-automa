@@ -2,18 +2,20 @@ use std::rc::Rc;
 use std::cell::RefCell;
 use std::collections::LinkedList;
 
+type ANode<I> = Rc<RefCell<Node<I>>>;
+
 pub struct Node<I> {
     links: LinkedList<Link<I>>,
 }
 
 impl <I> Node<I> {
-    pub fn new() -> Rc<RefCell<Node<I>>> {
+    pub fn new() -> ANode<I> {
         Rc::new(RefCell::new(Node {
             links: LinkedList::new(),
         }))
     }
 
-    pub fn link<F: Fn(&I) -> bool + 'static>(&mut self, destination: &Rc<RefCell<Node<I>>>, condition: F) -> &mut Link<I> {
+    pub fn link<F: Fn(&I) -> bool + 'static>(&mut self, destination: &ANode<I>, condition: F) -> &mut Link<I> {
         self.links.push_front(Link::new(destination, condition));
         self.links.front_mut().unwrap()
     }
@@ -22,11 +24,11 @@ impl <I> Node<I> {
 pub struct Link<I> {
     condition: Box<dyn Fn(&I) -> bool>,
     process: Option<Box<dyn Fn()>>,
-    destination: Rc<RefCell<Node<I>>>,
+    destination: ANode<I>,
 }
 
 impl <I> Link<I> {
-    pub fn new<F: Fn(&I) -> bool + 'static>(destination: &Rc<RefCell<Node<I>>>, condition: F) -> Link<I> {
+    pub fn new<F: Fn(&I) -> bool + 'static>(destination: &ANode<I>, condition: F) -> Link<I> {
         Link {
             condition: Box::new(condition),
             process: None,
@@ -50,11 +52,11 @@ impl <I> Link<I> {
 }
 
 pub struct Cursor<I> {
-    node: Rc<RefCell<Node<I>>>,
+    node: ANode<I>,
 }
 
 impl <I> Cursor<I> {
-    pub fn new(node: &Rc<RefCell<Node<I>>>) -> Cursor<I> {
+    pub fn new(node: &ANode<I>) -> Cursor<I> {
         Cursor {
             node: Rc::clone(node),
         }
