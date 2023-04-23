@@ -2,15 +2,15 @@ use std::rc::Rc;
 use std::cell::RefCell;
 use std::collections::LinkedList;
 
-pub type ANode<I> = Rc<RefCell<Node<I>>>;
+pub type ANode<I, R> = Rc<RefCell<Node<I, R>>>;
 
-pub trait Linkable<I> {
-    fn link_update<F, FUpd>(&mut self, destination: Option<&ANode<I>>, condition: F, update_link: FUpd)
+pub trait Linkable<I, R> {
+    fn link_update<F, FUpd>(&mut self, destination: Option<&ANode<I, R>>, condition: F, update_link: FUpd)
     where
         F : Fn(&I) -> bool + 'static,
-        FUpd: FnOnce(&mut Link<I>);
+        FUpd: FnOnce(&mut Link<I, R>);
 
-    fn link<F>(&mut self, destination: Option<&ANode<I>>, condition: F)
+    fn link<F>(&mut self, destination: Option<&ANode<I, R>>, condition: F)
     where
         F : Fn(&I) -> bool + 'static
     {
@@ -18,48 +18,48 @@ pub trait Linkable<I> {
     }
 }
 
-impl <I> Linkable<I> for ANode<I> {
-    fn link_update<F, FUpd>(&mut self, destination: Option<&ANode<I>>, condition: F, update_link: FUpd)
+impl <I, R> Linkable<I, R> for ANode<I, R> {
+    fn link_update<F, FUpd>(&mut self, destination: Option<&ANode<I, R>>, condition: F, update_link: FUpd)
     where
         F : Fn(&I) -> bool + 'static,
-        FUpd: FnOnce(&mut Link<I>)
+        FUpd: FnOnce(&mut Link<I, R>)
     {
         self.borrow_mut().link_update(destination, condition, update_link);
     }
 }
 
-pub struct Node<I> {
-    links: LinkedList<Link<I>>,
+pub struct Node<I, R> {
+    links: LinkedList<Link<I, R>>,
 }
 
-impl <I> Node<I> {
-    pub fn new() -> ANode<I> {
+impl <I, R> Node<I, R> {
+    pub fn new() -> ANode<I, R> {
         Rc::new(RefCell::new(Node {
             links: LinkedList::new(),
         }))
     }
 }
 
-impl <I> Linkable<I> for Node<I> {
+impl <I, R> Linkable<I, R> for Node<I, R> {
     
-    fn link_update<F, FUpd>(&mut self, destination: Option<&ANode<I>>, condition: F, update_link: FUpd)
+    fn link_update<F, FUpd>(&mut self, destination: Option<&ANode<I, R>>, condition: F, update_link: FUpd)
     where
         F : Fn(&I) -> bool + 'static,
-        FUpd: FnOnce(&mut Link<I>)
+        FUpd: FnOnce(&mut Link<I, R>)
     {
         self.links.push_front(Link::new(destination, condition));
         update_link(self.links.front_mut().unwrap());
     }
 }
 
-pub struct Link<I> {
+pub struct Link<I, R> {
     condition: Box<dyn Fn(&I) -> bool>,
-    process: Option<Box<dyn Fn(&I)>>,
-    destination: Option<ANode<I>>,
+    process: Option<Box<dyn Fn(&I) -> R>>,
+    destination: Option<ANode<I, R>>,
 }
 
-impl <I> Link<I> {
-    pub fn new<F: Fn(&I) -> bool + 'static>(destination: Option<&ANode<I>>, condition: F) -> Link<I> {
+impl <I, R> Link<I, R> {
+    pub fn new<F: Fn(&I) -> bool + 'static>(destination: Option<&ANode<I, R>>, condition: F) -> Link<I, R> {
         Link {
             condition: Box::new(condition),
             process: None,
@@ -71,23 +71,25 @@ impl <I> Link<I> {
         (self.condition)(input)
     }
 
-    pub fn process(&self, input: &I) {
+    pub fn process(&self, input: &I) -> Option<R> {
         if let Some(fun) = &self.process {
-            fun(input);
-        } 
+            Some(fun(input))
+        } else {
+            None
+        }
     }
 
-    pub fn set_process<F: Fn(&I) + 'static>(&mut self, fun: F) {
+    pub fn set_process<F: Fn(&I) -> R + 'static>(&mut self, fun: F) {
         self.process = Some(Box::new(fun));
     }
 }
 
-pub struct Cursor<I> {
-    node: ANode<I>,
+pub struct Cursor<I, R> {
+    node: ANode<I, R>,
 }
 
-impl <I> Cursor<I> {
-    pub fn new(node: &ANode<I>) -> Cursor<I> {
+impl <I, R> Cursor<I, R> {
+    pub fn new(node: &ANode<I, R>) -> Cursor<I, R> {
         Cursor {
             node: Rc::clone(node),
         }
