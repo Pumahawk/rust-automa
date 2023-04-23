@@ -5,12 +5,12 @@ use std::collections::LinkedList;
 type ANode<I> = Rc<RefCell<Node<I>>>;
 
 pub trait Linkable<I> {
-    fn link_update<F, FUpd>(&mut self, destination: &ANode<I>, condition: F, update_link: FUpd)
+    fn link_update<F, FUpd>(&mut self, destination: Option<&ANode<I>>, condition: F, update_link: FUpd)
     where
         F : Fn(&I) -> bool + 'static,
         FUpd: FnOnce(&mut Link<I>);
 
-    fn link<F>(&mut self, destination: &ANode<I>, condition: F)
+    fn link<F>(&mut self, destination: Option<&ANode<I>>, condition: F)
     where
         F : Fn(&I) -> bool + 'static
     {
@@ -19,7 +19,7 @@ pub trait Linkable<I> {
 }
 
 impl <I> Linkable<I> for ANode<I> {
-    fn link_update<F, FUpd>(&mut self, destination: &ANode<I>, condition: F, update_link: FUpd)
+    fn link_update<F, FUpd>(&mut self, destination: Option<&ANode<I>>, condition: F, update_link: FUpd)
     where
         F : Fn(&I) -> bool + 'static,
         FUpd: FnOnce(&mut Link<I>)
@@ -42,7 +42,7 @@ impl <I> Node<I> {
 
 impl <I> Linkable<I> for Node<I> {
     
-    fn link_update<F, FUpd>(&mut self, destination: &ANode<I>, condition: F, update_link: FUpd)
+    fn link_update<F, FUpd>(&mut self, destination: Option<&ANode<I>>, condition: F, update_link: FUpd)
     where
         F : Fn(&I) -> bool + 'static,
         FUpd: FnOnce(&mut Link<I>)
@@ -55,15 +55,15 @@ impl <I> Linkable<I> for Node<I> {
 pub struct Link<I> {
     condition: Box<dyn Fn(&I) -> bool>,
     process: Option<Box<dyn Fn()>>,
-    destination: ANode<I>,
+    destination: Option<ANode<I>>,
 }
 
 impl <I> Link<I> {
-    pub fn new<F: Fn(&I) -> bool + 'static>(destination: &ANode<I>, condition: F) -> Link<I> {
+    pub fn new<F: Fn(&I) -> bool + 'static>(destination: Option<&ANode<I>>, condition: F) -> Link<I> {
         Link {
             condition: Box::new(condition),
             process: None,
-            destination: Rc::clone(destination),
+            destination: destination.map(|destination|Rc::clone(destination)),
         }
     }
 
@@ -98,7 +98,7 @@ impl <I> Cursor<I> {
         for link in self.node.borrow_mut().links.iter() {
             if link.condition(input) {
                 link.process();
-                node = Some(Rc::clone(&link.destination));
+                node = link.destination.clone();
                 break;
             }
         }
@@ -127,7 +127,7 @@ mod tests {
         let mut node1 = Node::<char>::new();
         let node2 = Node::<char>::new();
 
-        node1.link_update(&node2, eq('A'), |link| {
+        node1.link_update(Some(&node2), eq('A'), |link| {
             link.set_process(move ||v2.borrow_mut().push("help"));
         });
 
