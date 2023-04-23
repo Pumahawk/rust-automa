@@ -88,12 +88,25 @@ mod tests {
     
     #[test]
     fn create_automa() {
-        let mut node1 = Node::<char>::new();
+
+        let v = Rc::new(RefCell::new(Vec::new()));
+        let v2 = Rc::clone(&v);
+
+
+        let node1 = Node::<char>::new();
         let node2 = Node::<char>::new();
 
-        Rc::get_mut(&mut node1).unwrap().get_mut().link(&node2, eq('A'));
+        {
+            let mut binding = node1.borrow_mut();
+            let link = binding.link(&node2, eq('A'));
+            link.set_process(move ||v2.borrow_mut().push("help"));
+        }
 
         let mut cursor = Cursor::new(&node1);
+        cursor.action(&'B');
+        assert_eq!(0, v.borrow().len());
         cursor.action(&'A');
+
+        assert_eq!("help", v.borrow()[0]);
     }
 }
