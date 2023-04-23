@@ -10,12 +10,21 @@ pub trait Linkable<I> {
         F : Fn(&I) -> bool + 'static,
         FUpd: FnOnce(&mut Link<I>);
 
-    fn link<F, FUpd>(&mut self, destination: &ANode<I>, condition: F)
+    fn link<F>(&mut self, destination: &ANode<I>, condition: F)
+    where
+        F : Fn(&I) -> bool + 'static
+    {
+        self.link_update(destination, condition, |_|{});
+    }
+}
+
+impl <I> Linkable<I> for ANode<I> {
+    fn link_update<F, FUpd>(&mut self, destination: &ANode<I>, condition: F, update_link: FUpd)
     where
         F : Fn(&I) -> bool + 'static,
         FUpd: FnOnce(&mut Link<I>)
     {
-        self.link_update(destination, condition, |_|{});
+        self.borrow_mut().link_update(destination, condition, update_link);
     }
 }
 
@@ -115,10 +124,10 @@ mod tests {
         let v2 = Rc::clone(&v);
 
 
-        let node1 = Node::<char>::new();
+        let mut node1 = Node::<char>::new();
         let node2 = Node::<char>::new();
 
-        node1.borrow_mut().link_update(&node2, eq('A'), |link| {
+        node1.link_update(&node2, eq('A'), |link| {
             link.set_process(move ||v2.borrow_mut().push("help"));
         });
 
