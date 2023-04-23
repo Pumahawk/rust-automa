@@ -118,6 +118,8 @@ pub fn eq<T: std::cmp::PartialEq>(input: T) -> impl Fn(&T) -> bool {
 mod tests {
 
     use crate::*;
+
+    type TNode = Node<char, ()>;
     
     #[test]
     fn create_automa() {
@@ -126,8 +128,8 @@ mod tests {
         let v2 = Rc::clone(&v);
 
 
-        let mut node1 = Node::<char>::new();
-        let node2 = Node::<char>::new();
+        let mut node1 = TNode::new();
+        let node2 = TNode::new();
 
         node1.link_update(Some(&node2), eq('A'), |link| {
             link.set_process(move |_|v2.borrow_mut().push("help"));
@@ -146,9 +148,9 @@ mod tests {
         let string = Rc::new(RefCell::new(Vec::<char>::new()));
 
 
-        let mut n1 = Node::<char>::new();
-        let mut n2 = Node::<char>::new();
-        let n3 = Node::<char>::new();
+        let mut n1 = TNode::new();
+        let mut n2 = TNode::new();
+        let n3 = TNode::new();
 
         n1.link(Some(&n2), eq('"'));
 
