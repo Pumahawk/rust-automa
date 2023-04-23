@@ -16,6 +16,14 @@ pub trait Linkable<I, R> {
     {
         self.link_update(destination, condition, |_|{});
     }
+
+    fn link_process<F, FPr>(&mut self, destination: Option<&ANode<I, R>>, condition: F, process: FPr)
+    where
+        F : Fn(&I) -> bool + 'static,
+        FPr: Fn(&I) -> R + 'static
+    {
+        self.link_update(destination, condition, |link| link.set_process(process));
+    }
 }
 
 impl <I, R> Linkable<I, R> for ANode<I, R> {
@@ -166,14 +174,12 @@ mod tests {
         n1.link(Some(&n2), eq('"'));
 
         let strc = Rc::clone(&string);
-        n2.link_update(None, |input| input >= &'a' || input <= &'z', |link| {
-            link.set_process(move |input| {
-                strc.borrow_mut().push(*input);
-                StrStatus::None
-            });
+        n2.link_process(None, |input| input >= &'a' || input <= &'z', move |input| {
+            strc.borrow_mut().push(*input);
+            StrStatus::None
         });
 
-        n2.link_update(Some(&n3), eq('"'), |link| link.set_process(|_| StrStatus::StringEnd));
+        n2.link_process(Some(&n3), eq('"'), |_| StrStatus::StringEnd);
 
         let input = r#""stringa"#;
         let mut cursor = Cursor::new(&n1);
