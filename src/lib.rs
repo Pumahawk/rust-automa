@@ -4,6 +4,21 @@ use std::collections::LinkedList;
 
 type ANode<I> = Rc<RefCell<Node<I>>>;
 
+pub trait Linkable<I> {
+    fn link_update<F, FUpd>(&mut self, destination: &ANode<I>, condition: F, update_link: FUpd)
+    where
+        F : Fn(&I) -> bool + 'static,
+        FUpd: FnOnce(&mut Link<I>);
+
+    fn link<F, FUpd>(&mut self, destination: &ANode<I>, condition: F)
+    where
+        F : Fn(&I) -> bool + 'static,
+        FUpd: FnOnce(&mut Link<I>)
+    {
+        self.link_update(destination, condition, |_|{});
+    }
+}
+
 pub struct Node<I> {
     links: LinkedList<Link<I>>,
 }
@@ -14,10 +29,17 @@ impl <I> Node<I> {
             links: LinkedList::new(),
         }))
     }
+}
 
-    pub fn link<F: Fn(&I) -> bool + 'static>(&mut self, destination: &ANode<I>, condition: F) -> &mut Link<I> {
+impl <I> Linkable<I> for Node<I> {
+    
+    fn link_update<F, FUpd>(&mut self, destination: &ANode<I>, condition: F, update_link: FUpd)
+    where
+        F : Fn(&I) -> bool + 'static,
+        FUpd: FnOnce(&mut Link<I>)
+    {
         self.links.push_front(Link::new(destination, condition));
-        self.links.front_mut().unwrap()
+        update_link(self.links.front_mut().unwrap());
     }
 }
 
@@ -96,11 +118,9 @@ mod tests {
         let node1 = Node::<char>::new();
         let node2 = Node::<char>::new();
 
-        {
-            let mut binding = node1.borrow_mut();
-            let link = binding.link(&node2, eq('A'));
+        node1.borrow_mut().link_update(&node2, eq('A'), |link| {
             link.set_process(move ||v2.borrow_mut().push("help"));
-        }
+        });
 
         let mut cursor = Cursor::new(&node1);
         cursor.action(&'B');
