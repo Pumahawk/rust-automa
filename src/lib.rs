@@ -54,7 +54,7 @@ impl <I> Linkable<I> for Node<I> {
 
 pub struct Link<I> {
     condition: Box<dyn Fn(&I) -> bool>,
-    process: Option<Box<dyn Fn()>>,
+    process: Option<Box<dyn Fn(&I)>>,
     destination: Option<ANode<I>>,
 }
 
@@ -71,13 +71,13 @@ impl <I> Link<I> {
         (self.condition)(input)
     }
 
-    pub fn process(&self) {
+    pub fn process(&self, input: &I) {
         if let Some(fun) = &self.process {
-            fun();
+            fun(input);
         } 
     }
 
-    pub fn set_process<F: Fn() + 'static>(&mut self, fun: F) {
+    pub fn set_process<F: Fn(&I) + 'static>(&mut self, fun: F) {
         self.process = Some(Box::new(fun));
     }
 }
@@ -97,7 +97,7 @@ impl <I> Cursor<I> {
         let mut node = None;
         for link in self.node.borrow_mut().links.iter() {
             if link.condition(input) {
-                link.process();
+                link.process(input);
                 node = link.destination.clone();
                 break;
             }
@@ -128,7 +128,7 @@ mod tests {
         let node2 = Node::<char>::new();
 
         node1.link_update(Some(&node2), eq('A'), |link| {
-            link.set_process(move ||v2.borrow_mut().push("help"));
+            link.set_process(move |_|v2.borrow_mut().push("help"));
         });
 
         let mut cursor = Cursor::new(&node1);
@@ -152,7 +152,7 @@ mod tests {
 
         let strc = Rc::clone(&string);
         n2.link_update(None, |input| input >= &'a' || input <= &'z', |link| {
-            link.set_process(move || strc.borrow_mut().push('v'));
+            link.set_process(move |input| strc.borrow_mut().push(*input));
         });
 
         n2.link(Some(&n3), eq('"'));
@@ -163,6 +163,6 @@ mod tests {
 
         let output: String = string.borrow().iter().collect();
 
-        assert_eq!("vvvvvvv", output);
+        assert_eq!("stringa", output);
     }
 }
