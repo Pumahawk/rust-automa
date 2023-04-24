@@ -55,8 +55,8 @@ impl <I, R> Linkable<I, R> for Node<I, R> {
         F : Fn(&I) -> bool + 'static,
         FUpd: FnOnce(&mut Link<I, R>)
     {
-        self.links.push_front(Link::new(destination, condition));
-        update_link(self.links.front_mut().unwrap());
+        self.links.push_back(Link::new(destination, condition));
+        update_link(self.links.back_mut().unwrap());
     }
 }
 
@@ -174,7 +174,7 @@ mod tests {
         n1.link(Some(&n2), eq('"'));
 
         let strc = Rc::clone(&string);
-        n2.link_process(None, |input| input >= &'a' || input <= &'z', move |input| {
+        n2.link_process(None, |input| input >= &'a' && input <= &'z', move |input| {
             strc.borrow_mut().push(*input);
             StrStatus::None
         });
