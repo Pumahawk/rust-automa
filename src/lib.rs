@@ -17,10 +17,18 @@ pub trait Linkable<I, R> {
         self.link_update(destination, condition, |_|{});
     }
 
+    fn link_function<F, FPr>(&mut self, destination: Option<&ANode<I, R>>, condition: F, process: FPr)
+    where
+        F : Fn(&I) -> bool + 'static,
+        FPr: Fn(&I) -> Option<R> + 'static
+    {
+        self.link_update(destination, condition, |link| link.set_function(process));
+    }
+
     fn link_process<F, FPr>(&mut self, destination: Option<&ANode<I, R>>, condition: F, process: FPr)
     where
         F : Fn(&I) -> bool + 'static,
-        FPr: Fn(&I) -> R + 'static
+        FPr: Fn(&I) + 'static
     {
         self.link_update(destination, condition, |link| link.set_process(process));
     }
@@ -62,7 +70,7 @@ impl <I, R> Linkable<I, R> for Node<I, R> {
 
 pub struct Link<I, R> {
     condition: Box<dyn Fn(&I) -> bool>,
-    process: Option<Box<dyn Fn(&I) -> R>>,
+    process: Option<Box<dyn Fn(&I) -> Option<R>>>,
     destination: Option<ANode<I, R>>,
 }
 
@@ -81,13 +89,17 @@ impl <I, R> Link<I, R> {
 
     pub fn process(&self, input: &I) -> Option<R> {
         if let Some(fun) = &self.process {
-            Some(fun(input))
+            fun(input)
         } else {
             None
         }
     }
 
-    pub fn set_process<F: Fn(&I) -> R + 'static>(&mut self, fun: F) {
+    pub fn set_process<F: Fn(&I) + 'static>(&mut self, fun: F) {
+        self.set_function(move |input| {fun(input); None});
+    }
+
+    pub fn set_function<F: Fn(&I) -> Option<R> + 'static>(&mut self, fun: F) {
         self.process = Some(Box::new(fun));
     }
 }
@@ -159,7 +171,6 @@ mod tests {
 
         enum StrStatus {
             StringEnd,
-            None,
         }
 
         type StrNode = Node<char, StrStatus>;
@@ -174,12 +185,9 @@ mod tests {
         n1.link(Some(&n2), eq('"'));
 
         let strc = Rc::clone(&string);
-        n2.link_process(None, |input| input >= &'a' && input <= &'z', move |input| {
-            strc.borrow_mut().push(*input);
-            StrStatus::None
-        });
+        n2.link_process(None, |input| input >= &'a' && input <= &'z', move |input| strc.borrow_mut().push(*input));
 
-        n2.link_process(Some(&n3), eq('"'), |_| StrStatus::StringEnd);
+        n2.link_function(Some(&n3), eq('"'), |_| Some(StrStatus::StringEnd));
 
         let input = r#""stringa"#;
         let mut cursor = Cursor::new(&n1);
