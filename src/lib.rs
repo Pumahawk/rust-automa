@@ -207,19 +207,7 @@ mod tests {
             StringEnd,
         }
 
-        struct StrContext {
-            text: Vec<char>,
-        }
-
-        impl StrContext {
-            fn new() -> StrContext {
-                StrContext {
-                    text: Vec::new(),
-                }
-            }
-        }
-
-        type StrNode = ANode<char, StrStatus, StrContext>;
+        type StrNode = ANode<char, StrStatus, Vec<char>>;
 
         let mut n1 = StrNode::new();
         let mut n2 = StrNode::new();
@@ -227,17 +215,17 @@ mod tests {
 
         n1.link(Some(&n2), eq('"'));
 
-        n2.link_process(None, |input,_| input >= &'a' && input <= &'z', |input, context| context.text.push(*input));
+        n2.link_process(None, |input,_| input >= &'a' && input <= &'z', |input, context| context.push(*input));
 
         n2.link_function(Some(&n3), eq('"'), |_,_| Some(StrStatus::StringEnd));
 
         let input = r#""stringa"#;
-        let mut cursor = Cursor::new(StrContext::new(), &n1);
+        let mut cursor = Cursor::new(Vec::new(), &n1);
         input.chars().for_each(|c| { cursor.action(&c); });
 
         match cursor.action(&'"') {
             Some(StrStatus::StringEnd) => {
-                let output: String = cursor.into_context().text.iter().collect();
+                let output: String = cursor.into_context().iter().collect();
                 assert_eq!("stringa", output);
             },
             _ => assert!(false),
