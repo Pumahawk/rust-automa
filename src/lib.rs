@@ -23,7 +23,7 @@ impl <I, R, C> ANode<I, R, C> {
 impl <I, R, C> Linkable<I, R, C> for ANode<I, R, C> {
     fn link_update<F, FUpd>(&mut self, destination: Option<&ANode<I, R, C>>, condition: F, update_link: FUpd)
     where
-        F : Fn(&I) -> bool + 'static,
+        F : Fn(&I, &C) -> bool + 'static,
         FUpd: FnOnce(&mut Link<I, R, C>)
     {
         self.node.borrow_mut().link_update(destination, condition, update_link);
@@ -33,19 +33,19 @@ impl <I, R, C> Linkable<I, R, C> for ANode<I, R, C> {
 pub trait Linkable<I, R, C> {
     fn link_update<F, FUpd>(&mut self, destination: Option<&ANode<I, R, C>>, condition: F, update_link: FUpd)
     where
-        F : Fn(&I) -> bool + 'static,
+        F : Fn(&I, &C) -> bool + 'static,
         FUpd: FnOnce(&mut Link<I, R, C>);
 
     fn link<F>(&mut self, destination: Option<&ANode<I, R, C>>, condition: F)
     where
-        F : Fn(&I) -> bool + 'static
+        F : Fn(&I, &C) -> bool + 'static
     {
         self.link_update(destination, condition, |_|{});
     }
 
     fn link_function<F, FPr>(&mut self, destination: Option<&ANode<I, R, C>>, condition: F, process: FPr)
     where
-        F : Fn(&I) -> bool + 'static,
+        F : Fn(&I, &C) -> bool + 'static,
         FPr: Fn(&I, &mut C) -> Option<R> + 'static
     {
         self.link_update(destination, condition, |link| link.set_function(process));
@@ -53,7 +53,7 @@ pub trait Linkable<I, R, C> {
 
     fn link_process<F, FPr>(&mut self, destination: Option<&ANode<I, R, C>>, condition: F, process: FPr)
     where
-        F : Fn(&I) -> bool + 'static,
+        F : Fn(&I, &C) -> bool + 'static,
         FPr: Fn(&I, &mut C) + 'static
     {
         self.link_update(destination, condition, |link| link.set_process(process));
@@ -76,7 +76,7 @@ impl <I, R, C> Linkable<I, R, C> for Node<I, R, C> {
     
     fn link_update<F, FUpd>(&mut self, destination: Option<&ANode<I, R, C>>, condition: F, update_link: FUpd)
     where
-        F : Fn(&I) -> bool + 'static,
+        F : Fn(&I, &C) -> bool + 'static,
         FUpd: FnOnce(&mut Link<I, R, C>)
     {
         self.links.push_back(Link::new(destination, condition));
@@ -85,13 +85,13 @@ impl <I, R, C> Linkable<I, R, C> for Node<I, R, C> {
 }
 
 pub struct Link<I, R, C> {
-    condition: Box<dyn Fn(&I) -> bool>,
+    condition: Box<dyn Fn(&I, &C) -> bool>,
     process: Option<Box<dyn Fn(&I, &mut C) -> Option<R>>>,
     destination: Option<ANode<I, R, C>>,
 }
 
 impl <I, R, C> Link<I, R, C> {
-    pub fn new<F: Fn(&I) -> bool + 'static>(destination: Option<&ANode<I, R, C>>, condition: F) -> Link<I, R, C> {
+    pub fn new<F: Fn(&I, &C) -> bool + 'static>(destination: Option<&ANode<I, R, C>>, condition: F) -> Link<I, R, C> {
         Link {
             condition: Box::new(condition),
             process: None,
@@ -99,8 +99,8 @@ impl <I, R, C> Link<I, R, C> {
         }
     }
 
-    pub fn condition(&self, input: &I) -> bool {
-        (self.condition)(input)
+    pub fn condition(&self, input: &I, context: &C) -> bool {
+        (self.condition)(input, context)
     }
 
     pub fn process(&self, input: &I, context: &mut C) -> Option<R> {
@@ -137,7 +137,7 @@ impl <I, R, C> Cursor<I, R, C> {
         let mut node = None;
         let mut res = None;
         for link in self.node.node.borrow_mut().links.iter() {
-            if link.condition(input) {
+            if link.condition(input, &self.context) {
                 res = link.process(input, &mut self.context);
                 node = if let Some(destination) = &link.destination { Some(destination.clone()) } else { None };
                 break;
@@ -159,12 +159,12 @@ impl <I, R, C> Cursor<I, R, C> {
     }
 }
 
-pub fn eq<T: std::cmp::PartialEq>(input: T) -> impl Fn(&T) -> bool {
-    move |el| el == &input
+pub fn eq<T: std::cmp::PartialEq, C>(input: T) -> impl Fn(&T, &C) -> bool {
+    move |el, _| el == &input
 }
 
-pub fn not_eq<T: std::cmp::PartialEq>(input: T) -> impl Fn(&T) -> bool {
-    move |el| el != &input
+pub fn not_eq<T: std::cmp::PartialEq, C>(input: T) -> impl Fn(&T, &C) -> bool {
+    move |el, _| el != &input
 }
 
 pub fn node<I, R, C>() -> ANode<I, R, C> {
