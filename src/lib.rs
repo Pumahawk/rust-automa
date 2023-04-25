@@ -151,6 +151,14 @@ impl <I, R> Cursor<I, R> {
 
 pub fn eq<T: std::cmp::PartialEq>(input: T) -> impl Fn(&T) -> bool {
     move |el| el == &input
+}
+
+pub fn not_eq<T: std::cmp::PartialEq>(input: T) -> impl Fn(&T) -> bool {
+    move |el| el != &input
+}
+
+pub fn node<I, R>() -> ANode<I, R> {
+    ANode::new()
 } 
 
 #[cfg(test)]
