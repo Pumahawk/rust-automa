@@ -227,7 +227,7 @@ mod tests {
 
         n1.link(Some(&n2), eq('"'));
 
-        n2.link_process(None, |input| input >= &'a' && input <= &'z', |input, context| context.text.push(*input));
+        n2.link_process(None, |input,_| input >= &'a' && input <= &'z', |input, context| context.text.push(*input));
 
         n2.link_function(Some(&n3), eq('"'), |_,_| Some(StrStatus::StringEnd));
 
