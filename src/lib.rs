@@ -2,7 +2,33 @@ use std::rc::Rc;
 use std::cell::RefCell;
 use std::collections::LinkedList;
 
-pub type ANode<I, R> = Rc<RefCell<Node<I, R>>>;
+pub struct ANode<I, R> {
+    node: Rc<RefCell<Node<I, R>>>,
+}
+
+impl <I, R> ANode<I, R> {
+    pub fn new() -> ANode<I, R> {
+        ANode {
+            node: Rc::new(RefCell::new(Node::new())),
+        }
+    }
+
+    pub fn clone(&self) -> ANode<I, R> {
+        ANode {
+            node: Rc::clone(&self.node),
+        }
+    }
+}
+
+impl <I, R> Linkable<I, R> for ANode<I, R> {
+    fn link_update<F, FUpd>(&mut self, destination: Option<&ANode<I, R>>, condition: F, update_link: FUpd)
+    where
+        F : Fn(&I) -> bool + 'static,
+        FUpd: FnOnce(&mut Link<I, R>)
+    {
+        self.node.borrow_mut().link_update(destination, condition, update_link);
+    }
+}
 
 pub trait Linkable<I, R> {
     fn link_update<F, FUpd>(&mut self, destination: Option<&ANode<I, R>>, condition: F, update_link: FUpd)
@@ -34,25 +60,15 @@ pub trait Linkable<I, R> {
     }
 }
 
-impl <I, R> Linkable<I, R> for ANode<I, R> {
-    fn link_update<F, FUpd>(&mut self, destination: Option<&ANode<I, R>>, condition: F, update_link: FUpd)
-    where
-        F : Fn(&I) -> bool + 'static,
-        FUpd: FnOnce(&mut Link<I, R>)
-    {
-        self.borrow_mut().link_update(destination, condition, update_link);
-    }
-}
-
 pub struct Node<I, R> {
     links: LinkedList<Link<I, R>>,
 }
 
 impl <I, R> Node<I, R> {
-    pub fn new() -> ANode<I, R> {
-        Rc::new(RefCell::new(Node {
+    pub fn new() -> Node<I, R> {
+        Node {
             links: LinkedList::new(),
-        }))
+        }
     }
 }
 
@@ -79,7 +95,7 @@ impl <I, R> Link<I, R> {
         Link {
             condition: Box::new(condition),
             process: None,
-            destination: destination.map(|destination|Rc::clone(destination)),
+            destination: destination.map(|destination| destination.clone()),
         }
     }
 
@@ -111,17 +127,17 @@ pub struct Cursor<I, R> {
 impl <I, R> Cursor<I, R> {
     pub fn new(node: &ANode<I, R>) -> Cursor<I, R> {
         Cursor {
-            node: Rc::clone(node),
+            node: node.clone(),
         }
     }
 
     pub fn action(&mut self, input: &I) -> Option<R> {
         let mut node = None;
         let mut res = None;
-        for link in self.node.borrow_mut().links.iter() {
+        for link in self.node.node.borrow_mut().links.iter() {
             if link.condition(input) {
                 res = link.process(input);
-                node = link.destination.clone();
+                node = if let Some(destination) = &link.destination { Some(destination.clone()) } else { None };
                 break;
             }
         }
@@ -142,7 +158,7 @@ mod tests {
 
     use crate::*;
 
-    type TNode = Node<char, ()>;
+    type TNode = ANode<char, ()>;
     
     #[test]
     fn create_automa() {
@@ -173,7 +189,7 @@ mod tests {
             StringEnd,
         }
 
-        type StrNode = Node<char, StrStatus>;
+        type StrNode = ANode<char, StrStatus>;
 
         let string = Rc::new(RefCell::new(Vec::<char>::new()));
 
