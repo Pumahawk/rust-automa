@@ -149,6 +149,14 @@ impl <I, R, C> Cursor<I, R, C> {
 
         res
     }
+
+    pub fn context(&self) -> &C {
+        &self.context
+    }
+
+    pub fn into_context(self) -> C {
+        self.context
+    }
 }
 
 pub fn eq<T: std::cmp::PartialEq>(input: T) -> impl Fn(&T) -> bool {
@@ -199,10 +207,19 @@ mod tests {
             StringEnd,
         }
 
-        type StrNode = ANode<char, StrStatus, ()>;
+        struct StrContext {
+            text: Vec<char>,
+        }
 
-        let string = Rc::new(RefCell::new(Vec::<char>::new()));
+        impl StrContext {
+            fn new() -> StrContext {
+                StrContext {
+                    text: Vec::new(),
+                }
+            }
+        }
 
+        type StrNode = ANode<char, StrStatus, StrContext>;
 
         let mut n1 = StrNode::new();
         let mut n2 = StrNode::new();
@@ -210,18 +227,17 @@ mod tests {
 
         n1.link(Some(&n2), eq('"'));
 
-        let strc = Rc::clone(&string);
-        n2.link_process(None, |input| input >= &'a' && input <= &'z', move |input,_| strc.borrow_mut().push(*input));
+        n2.link_process(None, |input| input >= &'a' && input <= &'z', |input, context| context.text.push(*input));
 
         n2.link_function(Some(&n3), eq('"'), |_,_| Some(StrStatus::StringEnd));
 
         let input = r#""stringa"#;
-        let mut cursor = Cursor::new((), &n1);
+        let mut cursor = Cursor::new(StrContext::new(), &n1);
         input.chars().for_each(|c| { cursor.action(&c); });
 
         match cursor.action(&'"') {
             Some(StrStatus::StringEnd) => {
-                let output: String = string.borrow().iter().collect();
+                let output: String = cursor.into_context().text.iter().collect();
                 assert_eq!("stringa", output);
             },
             _ => assert!(false),
