@@ -2,48 +2,56 @@ use std::rc::Rc;
 use std::cell::RefCell;
 use std::collections::LinkedList;
 
-pub struct ANode<I, R, C> {
-    node: Rc<RefCell<Node<I, R, C>>>,
+pub struct ANode<T, I, R, C> {
+    node: Rc<RefCell<Node<T, I, R, C>>>,
 }
 
-impl <I, R, C> ANode<I, R, C> {
-    pub fn new() -> ANode<I, R, C> {
+impl <T, I, R, C> ANode<T, I, R, C> {
+    pub fn new() -> ANode<T, I, R, C> {
         ANode {
             node: Rc::new(RefCell::new(Node::new())),
         }
     }
 
-    pub fn clone(&self) -> ANode<I, R, C> {
+    pub fn clone(&self) -> ANode<T, I, R, C> {
         ANode {
             node: Rc::clone(&self.node),
         }
     }
 }
 
-impl <I, R, C> Linkable<I, R, C> for ANode<I, R, C> {
-    fn link_update<F, FUpd>(&mut self, destination: Option<&ANode<I, R, C>>, condition: F, update_link: FUpd)
+impl <T, I, R, C> From<T> for ANode<T, I, R, C> {
+    fn from(value: T) -> Self {
+        ANode {
+            node: Rc::new(RefCell::new(Node::from(value))),
+        }
+    }
+}
+
+impl <T, I, R, C> Linkable<T, I, R, C> for ANode<T, I, R, C> {
+    fn link_update<F, FUpd>(&mut self, destination: Option<&ANode<T, I, R, C>>, condition: F, update_link: FUpd)
     where
         F : Fn(&I, &C) -> bool + 'static,
-        FUpd: FnOnce(&mut Link<I, R, C>)
+        FUpd: FnOnce(&mut Link<T, I, R, C>)
     {
         self.node.borrow_mut().link_update(destination, condition, update_link);
     }
 }
 
-pub trait Linkable<I, R, C> {
-    fn link_update<F, FUpd>(&mut self, destination: Option<&ANode<I, R, C>>, condition: F, update_link: FUpd)
+pub trait Linkable<T, I, R, C> {
+    fn link_update<F, FUpd>(&mut self, destination: Option<&ANode<T, I, R, C>>, condition: F, update_link: FUpd)
     where
         F : Fn(&I, &C) -> bool + 'static,
-        FUpd: FnOnce(&mut Link<I, R, C>);
+        FUpd: FnOnce(&mut Link<T, I, R, C>);
 
-    fn link<F>(&mut self, destination: Option<&ANode<I, R, C>>, condition: F)
+    fn link<F>(&mut self, destination: Option<&ANode<T, I, R, C>>, condition: F)
     where
         F : Fn(&I, &C) -> bool + 'static
     {
         self.link_update(destination, condition, |_|{});
     }
 
-    fn link_function<F, FPr>(&mut self, destination: Option<&ANode<I, R, C>>, condition: F, process: FPr)
+    fn link_function<F, FPr>(&mut self, destination: Option<&ANode<T, I, R, C>>, condition: F, process: FPr)
     where
         F : Fn(&I, &C) -> bool + 'static,
         FPr: Fn(&I, &mut C) -> Option<R> + 'static
@@ -51,7 +59,7 @@ pub trait Linkable<I, R, C> {
         self.link_update(destination, condition, |link| link.set_function(process));
     }
 
-    fn link_process<F, FPr>(&mut self, destination: Option<&ANode<I, R, C>>, condition: F, process: FPr)
+    fn link_process<F, FPr>(&mut self, destination: Option<&ANode<T, I, R, C>>, condition: F, process: FPr)
     where
         F : Fn(&I, &C) -> bool + 'static,
         FPr: Fn(&I, &mut C) + 'static
@@ -60,38 +68,49 @@ pub trait Linkable<I, R, C> {
     }
 }
 
-pub struct Node<I, R, C> {
-    links: LinkedList<Link<I, R, C>>,
+pub struct Node<T, I, R, C> {
+    value: Option<T>,
+    links: LinkedList<Link<T, I, R, C>>,
 }
 
-impl <I, R, C> Node<I, R, C> {
-    pub fn new() -> Node<I, R, C> {
+impl <T, I, R, C> Node<T, I, R, C> {
+    pub fn new() -> Node<T, I, R, C> {
         Node {
+            value: None,
             links: LinkedList::new(),
         }
     }
 }
 
-impl <I, R, C> Linkable<I, R, C> for Node<I, R, C> {
+impl <T, I, R, C> From<T> for Node<T, I, R, C> {
+    fn from(value: T) -> Self {
+        Node {
+            value : Some(value),
+            links: LinkedList::new(),
+        }
+    }
+}
+
+impl <T, I, R, C> Linkable<T, I, R, C> for Node<T, I, R, C> {
     
-    fn link_update<F, FUpd>(&mut self, destination: Option<&ANode<I, R, C>>, condition: F, update_link: FUpd)
+    fn link_update<F, FUpd>(&mut self, destination: Option<&ANode<T, I, R, C>>, condition: F, update_link: FUpd)
     where
         F : Fn(&I, &C) -> bool + 'static,
-        FUpd: FnOnce(&mut Link<I, R, C>)
+        FUpd: FnOnce(&mut Link<T, I, R, C>)
     {
         self.links.push_back(Link::new(destination, condition));
         update_link(self.links.back_mut().unwrap());
     }
 }
 
-pub struct Link<I, R, C> {
+pub struct Link<T, I, R, C> {
     condition: Box<dyn Fn(&I, &C) -> bool>,
     process: Option<Box<dyn Fn(&I, &mut C) -> Option<R>>>,
-    destination: Option<ANode<I, R, C>>,
+    destination: Option<ANode<T, I, R, C>>,
 }
 
-impl <I, R, C> Link<I, R, C> {
-    pub fn new<F: Fn(&I, &C) -> bool + 'static>(destination: Option<&ANode<I, R, C>>, condition: F) -> Link<I, R, C> {
+impl <T, I, R, C> Link<T, I, R, C> {
+    pub fn new<F: Fn(&I, &C) -> bool + 'static>(destination: Option<&ANode<T, I, R, C>>, condition: F) -> Link<T, I, R, C> {
         Link {
             condition: Box::new(condition),
             process: None,
@@ -120,13 +139,13 @@ impl <I, R, C> Link<I, R, C> {
     }
 }
 
-pub struct Cursor<I, R, C> {
+pub struct Cursor<T, I, R, C> {
     context: C,
-    node: ANode<I, R, C>,
+    node: ANode<T, I, R, C>,
 }
 
-impl <I, R, C> Cursor<I, R, C> {
-    pub fn new(context: C, node: &ANode<I, R, C>) -> Cursor<I, R, C> {
+impl <T, I, R, C> Cursor<T, I, R, C> {
+    pub fn new(context: C, node: &ANode<T, I, R, C>) -> Cursor<T, I, R, C> {
         Cursor {
             context,
             node: node.clone(),
@@ -154,6 +173,10 @@ impl <I, R, C> Cursor<I, R, C> {
         &self.context
     }
 
+    pub fn access_data<F: FnOnce(Option<&T>, &mut C)>(&mut self, fun: F) {
+        fun(self.node.node.borrow().value.as_ref(), &mut self.context);
+    }
+    
     pub fn into_context(self) -> C {
         self.context
     }
@@ -167,7 +190,7 @@ pub fn not_eq<T: std::cmp::PartialEq, C>(input: T) -> impl Fn(&T, &C) -> bool {
     move |el, _| el != &input
 }
 
-pub fn node<I, R, C>() -> ANode<I, R, C> {
+pub fn node<T, I, R, C>() -> ANode<T, I, R, C> {
     ANode::new()
 } 
 
@@ -176,7 +199,7 @@ mod tests {
 
     use crate::*;
 
-    type TNode = ANode<char, (), ()>;
+    type TNode = ANode<(), char, (), ()>;
     
     #[test]
     fn create_automa() {
@@ -207,25 +230,31 @@ mod tests {
             StringEnd,
         }
 
-        type StrNode = ANode<char, StrStatus, Vec<char>>;
+        type StrNode = ANode<bool, char, StrStatus, (bool, Vec<char>)>;
 
         let mut n1 = StrNode::new();
         let mut n2 = StrNode::new();
-        let n3 = StrNode::new();
+        let n3 = StrNode::from(true);
 
         n1.link(Some(&n2), eq('"'));
 
-        n2.link_process(None, |input,_| input >= &'a' && input <= &'z', |input, context| context.push(*input));
+        n2.link_process(None, |input,_| input >= &'a' && input <= &'z', |input, context| context.1.push(*input));
 
         n2.link_function(Some(&n3), eq('"'), |_,_| Some(StrStatus::StringEnd));
 
         let input = r#""stringa"#;
-        let mut cursor = Cursor::new(Vec::new(), &n1);
+        let mut cursor = Cursor::new((false, Vec::new()), &n1);
         input.chars().for_each(|c| { cursor.action(&c); });
 
-        match cursor.action(&'"') {
+        
+        let result = cursor.action(&'"');
+        cursor.access_data(|d, ctx| ctx.0 = *d.unwrap());
+
+        assert_eq!(true, cursor.context().0);
+
+        match result {
             Some(StrStatus::StringEnd) => {
-                let output: String = cursor.into_context().iter().collect();
+                let output: String = cursor.into_context().1.iter().collect();
                 assert_eq!("stringa", output);
             },
             _ => assert!(false),
