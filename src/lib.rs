@@ -29,30 +29,20 @@ impl <T, I, R, C> From<T> for ANode<T, I, R, C> {
 }
 
 impl <T, I, R, C> Linkable<T, I, R, C> for ANode<T, I, R, C> {
-    fn link_update<F, FUpd, FPr>(&mut self, destination: Option<&ANode<T, I, R, C>>, condition: F, process: FPr, update_link: FUpd)
-    where
-        F : Fn(&I, &C) -> bool + 'static,
-        FUpd: FnOnce(&mut Link<T, I, R, C>),
-        FPr: Fn(I, &mut C) -> R + 'static
-    {
-        self.node.borrow_mut().link_update(destination, condition, process, update_link);
-    }
-}
-
-pub trait Linkable<T, I, R, C> {
-    fn link_update<F, FUpd, FPr>(&mut self, destination: Option<&ANode<T, I, R, C>>, condition: F, process: FPr, update_link: FUpd)
-    where
-        F : Fn(&I, &C) -> bool + 'static,
-        FUpd: FnOnce(&mut Link<T, I, R, C>),
-        FPr: Fn(I, &mut C) -> R + 'static;
-
     fn link_function<F, FPr>(&mut self, destination: Option<&ANode<T, I, R, C>>, condition: F, process: FPr)
     where
         F : Fn(&I, &C) -> bool + 'static,
         FPr: Fn(I, &mut C) -> R + 'static
     {
-        self.link_update(destination, condition, process, |_| {});
+        self.node.borrow_mut().link_function(destination, condition, process);
     }
+}
+
+pub trait Linkable<T, I, R, C> {
+    fn link_function<F, FPr>(&mut self, destination: Option<&ANode<T, I, R, C>>, condition: F, process: FPr)
+    where
+        F : Fn(&I, &C) -> bool + 'static,
+        FPr: Fn(I, &mut C) -> R + 'static;
 }
 
 pub trait LinkProcess<T, I, R, C> {
@@ -75,7 +65,7 @@ impl <T, I, R, C, Tr: Linkable<T, I, Option<R>, C>> LinkProcess<T, I, R, C> for 
         F : Fn(&I, &C) -> bool + 'static,
         FPr: Fn(I, &mut C) + 'static
     {
-        self.link_update(destination, condition, move |input, ctx| {process(input, ctx); None},  |_| {});
+        self.link_function(destination, condition, move |input, ctx| {process(input, ctx); None});
     }
 
 }
@@ -104,15 +94,13 @@ impl <T, I, R, C> From<T> for Node<T, I, R, C> {
 }
 
 impl <T, I, R, C> Linkable<T, I, R, C> for Node<T, I, R, C> {
-    
-    fn link_update<F, FUpd, FPr>(&mut self, destination: Option<&ANode<T, I, R, C>>, condition: F, process: FPr, update_link: FUpd)
+
+    fn link_function<F, FPr>(&mut self, destination: Option<&ANode<T, I, R, C>>, condition: F, process: FPr)
     where
         F : Fn(&I, &C) -> bool + 'static,
-        FUpd: FnOnce(&mut Link<T, I, R, C>),
         FPr: Fn(I, &mut C) -> R + 'static
     {
         self.links.push_back(Link::new(destination, condition, process));
-        update_link(self.links.back_mut().unwrap());
     }
 }
 
