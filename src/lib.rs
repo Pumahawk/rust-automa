@@ -60,6 +60,13 @@ pub trait LinkProcess<T, I, R, C> {
     where
         F : Fn(&I, &C) -> bool + 'static,
         FPr: Fn(I, &mut C) + 'static;
+    
+    fn link<F>(&mut self, destination: Option<&ANode<T, I, Option<R>, C>>, condition: F)
+    where
+        F : Fn(&I, &C) -> bool + 'static
+    {
+        self.link_process(destination, condition, |_,_|{});
+    }
 }
 
 impl <T, I, R, C, Tr: Linkable<T, I, Option<R>, C>> LinkProcess<T, I, R, C> for Tr {
