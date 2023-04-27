@@ -146,17 +146,19 @@ impl <T, I, R, C> Link<T, I, Option<R>, C> {
 pub struct Cursor<T, I, R, C> {
     context: C,
     node: ANode<T, I, R, C>,
+    default: Box<dyn Fn(&C) -> R>
 }
 
 impl <T, I, R, C> Cursor<T, I, R, C> {
-    pub fn new(context: C, node: &ANode<T, I, R, C>) -> Cursor<T, I, R, C> {
+    pub fn new<Def: Fn(&C) -> R + 'static>(context: C, node: &ANode<T, I, R, C>, default: Def) -> Cursor<T, I, R, C> {
         Cursor {
             context,
             node: node.clone(),
+            default: Box::new(default),
         }
     }
 
-    pub fn action(&mut self, input: I) -> Option<R> {
+    pub fn action(&mut self, input: I) -> R {
         let mut node = None;
         let mut res = None;
         for link in self.node.node.borrow_mut().links.iter() {
@@ -170,7 +172,7 @@ impl <T, I, R, C> Cursor<T, I, R, C> {
             self.node = node;
         }
 
-        res
+        res.unwrap_or_else(||(self.default)(&self.context))
     }
 
     pub fn context(&self) -> &C {
@@ -183,6 +185,15 @@ impl <T, I, R, C> Cursor<T, I, R, C> {
     
     pub fn into_context(self) -> C {
         self.context
+    }
+}
+impl <T, I, R, C> Cursor<T, I, Option<R>, C> {
+    pub fn new_none(context: C, node: &ANode<T, I, Option<R>, C>) -> Cursor<T, I, Option<R>, C> {
+        Cursor {
+            context,
+            node: node.clone(),
+            default: Box::new(|_|None),
+        }
     }
 }
 
@@ -217,7 +228,7 @@ mod tests {
 
         node1.link_function(Some(&node2), eq('A'), move |_,_| v2.borrow_mut().push("help"));
 
-        let mut cursor = Cursor::new((), &node1);
+        let mut cursor = Cursor::new((), &node1, |_|());
         cursor.action('B');
         assert_eq!(0, v.borrow().len());
         cursor.action('A');
@@ -245,7 +256,7 @@ mod tests {
         n2.link_function(Some(&n3), eq('"'), |_,_| Some(StrStatus::StringEnd));
 
         let input = r#""stringa"#;
-        let mut cursor = Cursor::new((false, Vec::new()), &n1);
+        let mut cursor = Cursor::new_none((false, Vec::new()), &n1);
         input.chars().for_each(|c| { cursor.action(c); });
 
         
@@ -254,7 +265,7 @@ mod tests {
 
         assert_eq!(true, cursor.context().0);
 
-        match result.flatten() {
+        match result {
             Some(StrStatus::StringEnd) => {
                 let output: String = cursor.into_context().1.iter().collect();
                 assert_eq!("stringa", output);
