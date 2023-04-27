@@ -54,7 +54,7 @@ pub trait Linkable<T, I, R, C> {
     fn link_function<F, FPr>(&mut self, destination: Option<&ANode<T, I, R, C>>, condition: F, process: FPr)
     where
         F : Fn(&I, &C) -> bool + 'static,
-        FPr: Fn(&I, &mut C) -> Option<R> + 'static
+        FPr: Fn(I, &mut C) -> Option<R> + 'static
     {
         self.link_update(destination, condition, |link| link.set_function(process));
     }
@@ -62,7 +62,7 @@ pub trait Linkable<T, I, R, C> {
     fn link_process<F, FPr>(&mut self, destination: Option<&ANode<T, I, R, C>>, condition: F, process: FPr)
     where
         F : Fn(&I, &C) -> bool + 'static,
-        FPr: Fn(&I, &mut C) + 'static
+        FPr: Fn(I, &mut C) + 'static
     {
         self.link_update(destination, condition, |link| link.set_process(process));
     }
@@ -105,7 +105,7 @@ impl <T, I, R, C> Linkable<T, I, R, C> for Node<T, I, R, C> {
 
 pub struct Link<T, I, R, C> {
     condition: Box<dyn Fn(&I, &C) -> bool>,
-    process: Option<Box<dyn Fn(&I, &mut C) -> Option<R>>>,
+    process: Option<Box<dyn Fn(I, &mut C) -> Option<R>>>,
     destination: Option<ANode<T, I, R, C>>,
 }
 
@@ -122,7 +122,7 @@ impl <T, I, R, C> Link<T, I, R, C> {
         (self.condition)(input, context)
     }
 
-    pub fn process(&self, input: &I, context: &mut C) -> Option<R> {
+    pub fn process(&self, input: I, context: &mut C) -> Option<R> {
         if let Some(fun) = &self.process {
             fun(input, context)
         } else {
@@ -130,11 +130,11 @@ impl <T, I, R, C> Link<T, I, R, C> {
         }
     }
 
-    pub fn set_process<F: Fn(&I, &mut C) + 'static>(&mut self, fun: F) {
+    pub fn set_process<F: Fn(I, &mut C) + 'static>(&mut self, fun: F) {
         self.set_function(move |input, context| {fun(input, context); None});
     }
 
-    pub fn set_function<F: Fn(&I, &mut C) -> Option<R> + 'static>(&mut self, fun: F) {
+    pub fn set_function<F: Fn(I, &mut C) -> Option<R> + 'static>(&mut self, fun: F) {
         self.process = Some(Box::new(fun));
     }
 }
@@ -152,11 +152,11 @@ impl <T, I, R, C> Cursor<T, I, R, C> {
         }
     }
 
-    pub fn action(&mut self, input: &I) -> Option<R> {
+    pub fn action(&mut self, input: I) -> Option<R> {
         let mut node = None;
         let mut res = None;
         for link in self.node.node.borrow_mut().links.iter() {
-            if link.condition(input, &self.context) {
+            if link.condition(&input, &self.context) {
                 res = link.process(input, &mut self.context);
                 node = if let Some(destination) = &link.destination { Some(destination.clone()) } else { None };
                 break;
@@ -216,9 +216,9 @@ mod tests {
         });
 
         let mut cursor = Cursor::new((), &node1);
-        cursor.action(&'B');
+        cursor.action('B');
         assert_eq!(0, v.borrow().len());
-        cursor.action(&'A');
+        cursor.action('A');
 
         assert_eq!("help", v.borrow()[0]);
     }
@@ -238,16 +238,16 @@ mod tests {
 
         n1.link(Some(&n2), eq('"'));
 
-        n2.link_process(None, |input,_| input >= &'a' && input <= &'z', |input, context| context.1.push(*input));
+        n2.link_process(None, |input,_| input >= &'a' && input <= &'z', |input, context| context.1.push(input));
 
         n2.link_function(Some(&n3), eq('"'), |_,_| Some(StrStatus::StringEnd));
 
         let input = r#""stringa"#;
         let mut cursor = Cursor::new((false, Vec::new()), &n1);
-        input.chars().for_each(|c| { cursor.action(&c); });
+        input.chars().for_each(|c| { cursor.action(c); });
 
         
-        let result = cursor.action(&'"');
+        let result = cursor.action('"');
         cursor.access_data(|d, ctx| ctx.0 = *d.unwrap());
 
         assert_eq!(true, cursor.context().0);
