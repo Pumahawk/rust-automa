@@ -29,42 +29,29 @@ impl <T, I, R, C> From<T> for ANode<T, I, R, C> {
 }
 
 impl <T, I, R, C> Linkable<T, I, R, C> for ANode<T, I, R, C> {
-    fn link_update<F, FUpd>(&mut self, destination: Option<&ANode<T, I, R, C>>, condition: F, update_link: FUpd)
+    fn link_update<F, FUpd, FPr>(&mut self, destination: Option<&ANode<T, I, R, C>>, condition: F, process: FPr, update_link: FUpd)
     where
         F : Fn(&I, &C) -> bool + 'static,
-        FUpd: FnOnce(&mut Link<T, I, R, C>)
+        FUpd: FnOnce(&mut Link<T, I, R, C>),
+        FPr: Fn(I, &mut C) -> R + 'static
     {
-        self.node.borrow_mut().link_update(destination, condition, update_link);
+        self.node.borrow_mut().link_update(destination, condition, process, update_link);
     }
 }
 
 pub trait Linkable<T, I, R, C> {
-    fn link_update<F, FUpd>(&mut self, destination: Option<&ANode<T, I, R, C>>, condition: F, update_link: FUpd)
+    fn link_update<F, FUpd, FPr>(&mut self, destination: Option<&ANode<T, I, R, C>>, condition: F, process: FPr, update_link: FUpd)
     where
         F : Fn(&I, &C) -> bool + 'static,
-        FUpd: FnOnce(&mut Link<T, I, R, C>);
-
-    fn link<F>(&mut self, destination: Option<&ANode<T, I, R, C>>, condition: F)
-    where
-        F : Fn(&I, &C) -> bool + 'static
-    {
-        self.link_update(destination, condition, |_|{});
-    }
+        FUpd: FnOnce(&mut Link<T, I, R, C>),
+        FPr: Fn(I, &mut C) -> R + 'static;
 
     fn link_function<F, FPr>(&mut self, destination: Option<&ANode<T, I, R, C>>, condition: F, process: FPr)
     where
         F : Fn(&I, &C) -> bool + 'static,
-        FPr: Fn(I, &mut C) -> Option<R> + 'static
+        FPr: Fn(I, &mut C) -> R + 'static
     {
-        self.link_update(destination, condition, |link| link.set_function(process));
-    }
-
-    fn link_process<F, FPr>(&mut self, destination: Option<&ANode<T, I, R, C>>, condition: F, process: FPr)
-    where
-        F : Fn(&I, &C) -> bool + 'static,
-        FPr: Fn(I, &mut C) + 'static
-    {
-        self.link_update(destination, condition, |link| link.set_process(process));
+        self.link_update(destination, condition, process, |_| {});
     }
 }
 
@@ -93,27 +80,32 @@ impl <T, I, R, C> From<T> for Node<T, I, R, C> {
 
 impl <T, I, R, C> Linkable<T, I, R, C> for Node<T, I, R, C> {
     
-    fn link_update<F, FUpd>(&mut self, destination: Option<&ANode<T, I, R, C>>, condition: F, update_link: FUpd)
+    fn link_update<F, FUpd, FPr>(&mut self, destination: Option<&ANode<T, I, R, C>>, condition: F, process: FPr, update_link: FUpd)
     where
         F : Fn(&I, &C) -> bool + 'static,
-        FUpd: FnOnce(&mut Link<T, I, R, C>)
+        FUpd: FnOnce(&mut Link<T, I, R, C>),
+        FPr: Fn(I, &mut C) -> R + 'static
     {
-        self.links.push_back(Link::new(destination, condition));
+        self.links.push_back(Link::new(destination, condition, process));
         update_link(self.links.back_mut().unwrap());
     }
 }
 
 pub struct Link<T, I, R, C> {
     condition: Box<dyn Fn(&I, &C) -> bool>,
-    process: Option<Box<dyn Fn(I, &mut C) -> Option<R>>>,
+    process: Box<dyn Fn(I, &mut C) -> R>,
     destination: Option<ANode<T, I, R, C>>,
 }
 
 impl <T, I, R, C> Link<T, I, R, C> {
-    pub fn new<F: Fn(&I, &C) -> bool + 'static>(destination: Option<&ANode<T, I, R, C>>, condition: F) -> Link<T, I, R, C> {
+    pub fn new<F, FPr>(destination: Option<&ANode<T, I, R, C>>, condition: F, process: FPr) -> Link<T, I, R, C>
+    where
+        F : Fn(&I, &C) -> bool + 'static,
+        FPr: Fn(I, &mut C) -> R + 'static
+    {
         Link {
             condition: Box::new(condition),
-            process: None,
+            process: Box::new(process),
             destination: destination.map(|destination| destination.clone()),
         }
     }
@@ -122,20 +114,12 @@ impl <T, I, R, C> Link<T, I, R, C> {
         (self.condition)(input, context)
     }
 
-    pub fn process(&self, input: I, context: &mut C) -> Option<R> {
-        if let Some(fun) = &self.process {
-            fun(input, context)
-        } else {
-            None
-        }
+    pub fn process(&self, input: I, context: &mut C) -> R {
+        (self.process)(input, context)
     }
 
-    pub fn set_process<F: Fn(I, &mut C) + 'static>(&mut self, fun: F) {
-        self.set_function(move |input, context| {fun(input, context); None});
-    }
-
-    pub fn set_function<F: Fn(I, &mut C) -> Option<R> + 'static>(&mut self, fun: F) {
-        self.process = Some(Box::new(fun));
+    pub fn set_function<F: Fn(I, &mut C) -> R + 'static>(&mut self, fun: F) {
+        self.process = Box::new(fun);
     }
 }
 
@@ -157,7 +141,7 @@ impl <T, I, R, C> Cursor<T, I, R, C> {
         let mut res = None;
         for link in self.node.node.borrow_mut().links.iter() {
             if link.condition(&input, &self.context) {
-                res = link.process(input, &mut self.context);
+                res = Some(link.process(input, &mut self.context));
                 node = if let Some(destination) = &link.destination { Some(destination.clone()) } else { None };
                 break;
             }
