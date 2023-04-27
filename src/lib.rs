@@ -227,9 +227,7 @@ mod tests {
         let mut node1 = TNode::new();
         let node2 = TNode::new();
 
-        node1.link_update(Some(&node2), eq('A'), |link| {
-            link.set_process(move |_,_|v2.borrow_mut().push("help"));
-        });
+        node1.link_function(Some(&node2), eq('A'), move |_,_| v2.borrow_mut().push("help"));
 
         let mut cursor = Cursor::new((), &node1);
         cursor.action('B');
@@ -246,7 +244,7 @@ mod tests {
             StringEnd,
         }
 
-        type StrNode = ANode<bool, char, StrStatus, (bool, Vec<char>)>;
+        type StrNode = ANode<bool, char, Option<StrStatus>, (bool, Vec<char>)>;
 
         let mut n1 = StrNode::new();
         let mut n2 = StrNode::new();
@@ -268,7 +266,7 @@ mod tests {
 
         assert_eq!(true, cursor.context().0);
 
-        match result {
+        match result.flatten() {
             Some(StrStatus::StringEnd) => {
                 let output: String = cursor.into_context().1.iter().collect();
                 assert_eq!("stringa", output);
