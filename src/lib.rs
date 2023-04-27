@@ -55,6 +55,24 @@ pub trait Linkable<T, I, R, C> {
     }
 }
 
+pub trait LinkProcess<T, I, R, C> {
+    fn link_process<F, FPr>(&mut self, destination: Option<&ANode<T, I, Option<R>, C>>, condition: F, process: FPr)
+    where
+        F : Fn(&I, &C) -> bool + 'static,
+        FPr: Fn(I, &mut C) + 'static;
+}
+
+impl <T, I, R, C, Tr: Linkable<T, I, Option<R>, C>> LinkProcess<T, I, R, C> for Tr {
+    fn link_process<F, FPr>(&mut self, destination: Option<&ANode<T, I, Option<R>, C>>, condition: F, process: FPr)
+    where
+        F : Fn(&I, &C) -> bool + 'static,
+        FPr: Fn(I, &mut C) + 'static
+    {
+        self.link_update(destination, condition, move |input, ctx| {process(input, ctx); None},  |_| {});
+    }
+
+}
+
 pub struct Node<T, I, R, C> {
     value: Option<T>,
     links: LinkedList<Link<T, I, R, C>>,
@@ -120,6 +138,13 @@ impl <T, I, R, C> Link<T, I, R, C> {
 
     pub fn set_function<F: Fn(I, &mut C) -> R + 'static>(&mut self, fun: F) {
         self.process = Box::new(fun);
+    }
+}
+
+impl <T, I, R, C> Link<T, I, Option<R>, C> {
+
+    pub fn set_process<F: Fn(I, &mut C) + 'static>(&mut self, fun: F) {
+        self.set_function(move |input, context| {fun(input, context); None});
     }
 }
 
