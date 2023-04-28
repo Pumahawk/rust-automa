@@ -146,7 +146,10 @@ impl <T, I, R, C> Link<T, I, Option<R>, C> {
 pub struct Cursor<T, I, R, C> {
     context: C,
     node: ANode<T, I, R, C>,
-    default: Box<dyn Fn(&C) -> R>
+    default: Box<dyn Fn(&C) -> R>,
+    black: bool,
+    in_black: bool,
+    default_black: Option<Box<dyn Fn(&C) -> R>>,
 }
 
 impl <T, I, R, C> Cursor<T, I, R, C> {
@@ -155,24 +158,53 @@ impl <T, I, R, C> Cursor<T, I, R, C> {
             context,
             node: node.clone(),
             default: Box::new(default),
+            black: false,
+            in_black: false,
+            default_black: None,
+        }
+    }
+
+    pub fn black<Def: Fn(&C) -> R + 'static>(context: C, node: &ANode<T, I, R, C>, default: Def, default_black: Def) -> Cursor<T, I, R, C> {
+        Cursor {
+            black: true,
+            default_black: Some(Box::new(default_black)),
+            ..Cursor::new(context, node, default)
         }
     }
 
     pub fn action(&mut self, input: I) -> R {
+
+        if self.in_black {
+            return self.generate_default_black();
+        }
+
         let mut node = None;
         let mut res = None;
+        let mut find = false;
         for link in self.node.node.borrow_mut().links.iter() {
             if link.condition(&input, &self.context) {
                 res = Some(link.process(input, &mut self.context));
                 node = if let Some(destination) = &link.destination { Some(destination.clone()) } else { None };
+                find = true;
                 break;
             }
         }
-        if let Some(node) = node {
-            self.node = node;
+        if find {
+            if let Some(node) = node {
+                self.node = node;
+            }
+        } else if self.black {
+            self.in_black = true;
+            return self.generate_default_black();
         }
-
         res.unwrap_or_else(||(self.default)(&self.context))
+    }
+
+    fn generate_default_black(&self) -> R {
+        self.default_black
+            .as_ref()
+            .map(|fun|fun(&self.context))
+            .unwrap_or_else(||(self.default)(&self.context))
     }
 
     pub fn context(&self) -> &C {
@@ -189,11 +221,7 @@ impl <T, I, R, C> Cursor<T, I, R, C> {
 }
 impl <T, I, R, C> Cursor<T, I, Option<R>, C> {
     pub fn new_none(context: C, node: &ANode<T, I, Option<R>, C>) -> Cursor<T, I, Option<R>, C> {
-        Cursor {
-            context,
-            node: node.clone(),
-            default: Box::new(|_|None),
-        }
+        Cursor::new(context, node, |_|None)
     }
 }
 
