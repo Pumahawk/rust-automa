@@ -149,7 +149,6 @@ pub struct Cursor<T, I, R, C> {
     default: Box<dyn Fn(&C) -> R>,
     black: bool,
     in_black: bool,
-    default_black: Option<Box<dyn Fn(&C) -> R>>,
 }
 
 impl <T, I, R, C> Cursor<T, I, R, C> {
@@ -160,15 +159,13 @@ impl <T, I, R, C> Cursor<T, I, R, C> {
             default: Box::new(default),
             black: false,
             in_black: false,
-            default_black: None,
         }
     }
 
-    pub fn black<Def: Fn(&C) -> R + 'static>(context: C, node: &ANode<T, I, R, C>, default: Def, default_black: Def) -> Cursor<T, I, R, C> {
+    pub fn black<Def: Fn(&C) -> R + 'static>(context: C, node: &ANode<T, I, R, C>, default_black: Def) -> Cursor<T, I, R, C> {
         Cursor {
             black: true,
-            default_black: Some(Box::new(default_black)),
-            ..Cursor::new(context, node, default)
+            ..Cursor::new(context, node, default_black)
         }
     }
 
@@ -201,10 +198,7 @@ impl <T, I, R, C> Cursor<T, I, R, C> {
     }
 
     fn generate_default_black(&self) -> R {
-        self.default_black
-            .as_ref()
-            .map(|fun|fun(&self.context))
-            .unwrap_or_else(||(self.default)(&self.context))
+        (self.default)(&self.context)
     }
 
     pub fn context(&self) -> &C {
@@ -301,5 +295,29 @@ mod tests {
             _ => assert!(false),
         }
 
+    }
+
+    #[test]
+    fn black_node() {
+        
+        #[derive(PartialEq)]
+        enum TValue {
+            N1, 
+            N2,
+        }
+        
+        type TNode = ANode<(), char, TValue, ()>;
+
+        let mut n1 = TNode::new();
+        let n2 = TNode::new();
+
+        n1.link_function(Some(&n2), eq('A'), |_,_|TValue::N1);
+
+        let mut cursor = Cursor::black((), &n1, |_|TValue::N2);
+        assert!(TValue::N1 == cursor.action('A'));
+
+        let mut cursor = Cursor::black((), &n1, |_|TValue::N2);
+        assert!(TValue::N2 == cursor.action('B'));
+        assert!(TValue::N2 == cursor.action('A'));
     }
 }
